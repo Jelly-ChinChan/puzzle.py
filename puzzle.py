@@ -99,9 +99,9 @@ div[data-testid="stVerticalBlock"] > div:has(> div[data-testid="stRadio"]) { mar
 MAX_ROUNDS = 3
 QUESTIONS_PER_ROUND = 10
 
-MODE_1 = "模式一\n-      【手寫輸入】"
-MODE_2 = "模式二\n-      【中文選擇】"
-MODE_3 = "模式三\n-      【英文選擇】"
+MODE_1 = "模式一\n-   【手寫輸入】"
+MODE_2 = "模式二\n-   【中文選擇】"
+MODE_3 = "模式三\n-   【英文選擇】"
 
 
 # ===================== 狀態 =====================
