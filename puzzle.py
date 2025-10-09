@@ -1,4 +1,5 @@
-# streamlit_app.py —— 3 modes + 判分修正 + 回上一題 + Summary + 力量模式(暗黑霓虹, Q11~Q30)
+# streamlit_app.py —— 3 modes + Summary + 力量模式(全黑霓虹, Q11~Q30, 一錯即止)
+# 調整：模式一移除標籤、進度條與題目貼齊、回饋改「詳解」
 import streamlit as st
 import random
 
@@ -78,55 +79,38 @@ QUESTION_BANK = [
     {'answer_en': 'warmth', 'cloze_en': 'Kind words create w_____h in people’s hearts.', 'sent_zh': '善意的話語帶來溫暖。', 'meaning_zh': '溫暖'},
 ]
 
-# ===================== 樣式（基礎 / 霓虹） =====================
+# ===================== 樣式（基礎 / 全黑霓虹） =====================
 def base_css():
     st.markdown("""
     <style>
     html, body, [class*="css"]  { font-size: 22px !important; }
-    h2 { font-size: 26px !important; margin-top: 0.22em !important; margin-bottom: 0.22em !important; }
+    /* 讓進度條與題目緊貼 */
+    h2 { font-size: 26px !important; margin-top: 0 !important; margin-bottom: 0.22em !important; }
     .block-container { padding-top: 0.4rem !important; padding-bottom: 0.9rem !important; max-width: 1000px; }
-    .progress-card { margin-bottom: 0.22rem !important; }
+    .progress-card { margin-bottom: 0 !important; }  /* 關鍵：去掉間距 */
     .stRadio { margin-top: 0 !important; }
     div[data-testid="stVerticalBlock"] > div:has(> div[data-testid="stRadio"]) { margin-top: 0 !important; }
     .stButton>button{ height: 44px; padding: 0 18px; }
     .feedback-small { font-size: 17px !important; line-height: 1.4; margin: 6px 0 2px 0; }
-    .feedback-correct { color: #1a7f37; font-weight: 700; }
-    .feedback-wrong { color: #c62828; font-weight: 700; }
     .zh-blue { color: #1e88e5; }
+    .explain { background:#f7f7f9; border-radius:12px; padding:10px 14px; border:1px solid #ececf1; }
     </style>
     """, unsafe_allow_html=True)
 
-def neon_css():
+def neon_black_css():
     st.markdown("""
     <style>
-      :root {
-        --bg:#0b0e14; --panel:#121726; --neon:#00f7ff; --neon2:#ff3d81; --txt:#e7e9ee;
-      }
+      :root { --bg:#000; --panel:#000; --txt:#e7e9ee; --neon:#00f7ff; --neon2:#ff3d81; }
       body { background:var(--bg) !important; }
       .block-container { color:var(--txt) !important; }
-      h2, h3, h4, h5, h6 { color:var(--txt) !important; text-shadow:0 0 6px rgba(0,247,255,0.35); }
-      .progress-card { background:var(--panel) !important; box-shadow:0 0 12px rgba(0,247,255,0.12) inset; }
-      .stButton>button{ background:#0c1222; color:var(--txt); border:1px solid rgba(0,247,255,.35); border-radius:12px; }
+      .progress-card { background:var(--panel) !important; border-radius:16px; box-shadow:0 0 12px rgba(0,247,255,.12) inset; }
+      h2 { color:var(--txt) !important; margin-top:0 !important; text-shadow:0 0 6px rgba(0,247,255,.35); }
+      .stButton>button{ background:#060606; color:var(--txt); border:1px solid rgba(0,247,255,.35); border-radius:12px; }
       .stButton>button:hover{ box-shadow:0 0 12px rgba(255,61,129,.45), inset 0 0 6px rgba(0,247,255,.35); }
-      .feedback-correct { color:#7ae582 !important; text-shadow:0 0 8px rgba(122,229,130,.5); }
-      .feedback-wrong { color:#ff6b6b !important; text-shadow:0 0 8px rgba(255,107,107,.55); }
-      .zh-blue { color:#8ab4ff !important; }
-      @keyframes neonPulse { 
-        0%{ text-shadow:0 0 8px var(--neon),0 0 16px var(--neon2); } 
-        50%{ text-shadow:0 0 2px var(--neon),0 0 6px var(--neon2); } 
-        100%{ text-shadow:0 0 8px var(--neon),0 0 16px var(--neon2); } 
-      }
-      .neon-title { color:#fff; letter-spacing:.08em; font-weight:900; animation:neonPulse 1.6s infinite; }
-      .gameover {
-        font-size: 48px; font-weight:900; letter-spacing:.12em; color:#ff3d81;
-        text-align:center; margin:18px 0 8px; 
-        text-shadow:0 0 10px rgba(255,61,129,.85), 0 0 22px rgba(0,247,255,.45);
-        animation: neonPulse 1.2s infinite;
-      }
-      .devil {
-        font-size: 64px; text-align:center; 
-        filter: drop-shadow(0 0 14px rgba(255,61,129,.75));
-      }
+      .explain { background:#0b0b0b; border:1px solid rgba(0,247,255,.2); }
+      .gameover { font-size: 48px; font-weight:900; letter-spacing:.12em; color:#ff3d81; text-align:center; margin:18px 0 8px;
+                  text-shadow:0 0 10px rgba(255,61,129,.85), 0 0 22px rgba(0,247,255,.45); }
+      .devil { font-size: 64px; text-align:center; filter: drop-shadow(0 0 14px rgba(255,61,129,.75)); }
     </style>
     """, unsafe_allow_html=True)
 
@@ -177,13 +161,10 @@ def is_free_text_correct(user_ans: str, correct_en: str) -> bool:
 def init_state():
     st.session_state.mode = MODE_1
     st.session_state.round_active = True
-    st.session_state.used_answers = set()
     st.session_state.cur_round_qidx = []
     st.session_state.cur_ptr = 0
-    st.session_state.browse_idx = None
-    st.session_state.records = []     # (idx_label, prompt, chosen, correct_en, is_correct, mode)
+    st.session_state.records = []     # (idx_label, prompt, chosen, correct_en, is_correct, mode, qidx_cache)
     st.session_state.submitted = False
-    st.session_state.last_feedback = ""
     st.session_state.options_cache = {}
     st.session_state.text_input_cache = ""
     # Summary & 力量模式
@@ -195,13 +176,10 @@ def init_state():
 
 def start_round10():
     all_idx = list(range(len(QUESTION_BANK)))
-    # 先抽「題目索引」，之後用其 answer_en 做避重
     chosen = random.sample(all_idx, k=min(QUESTIONS_PER_ROUND, len(all_idx)))
     st.session_state.cur_round_qidx = chosen
     st.session_state.cur_ptr = 0
-    st.session_state.browse_idx = None
     st.session_state.submitted = False
-    st.session_state.last_feedback = ""
     st.session_state.options_cache = {}
     st.session_state.text_input_cache = ""
     st.session_state.records = []
@@ -222,9 +200,7 @@ with st.sidebar:
     )
     st.session_state.mode = st.radio("選擇練習模式", [MODE_1, MODE_2, MODE_3], index=0, disabled=not can_change_mode)
     if st.button("🔄 重新開始"):
-        init_state()
-        start_round10()
-        st.rerun()
+        init_state(); start_round10(); st.rerun()
 
 # ===================== 選項 =====================
 def get_options_for_q(qidx, mode):
@@ -259,7 +235,7 @@ def get_options_for_q(qidx, mode):
     st.session_state.options_cache[key] = payload
     return payload
 
-# ===================== UI 元件 =====================
+# ===================== UI =====================
 def render_top_card(title_round, i, n):
     percent = int(i / n * 100) if n else 0
     st.markdown(
@@ -275,124 +251,102 @@ def render_top_card(title_round, i, n):
         unsafe_allow_html=True
     )
 
-def render_question_by_index(global_idx, label_no):
+def render_question_by_index(global_idx, label_no, power=False):
+    if power: neon_black_css()
     q = QUESTION_BANK[global_idx]
     mode = st.session_state.mode
 
-    if st.session_state.power_mode:
-        neon_css()
-
+    # 題目（緊貼進度條，h2 margin-top 已在 CSS = 0）
     if mode == MODE_3:
         prompt = q.get("sent_zh", "").strip()
-        st.markdown(f"<h2 class='neon-title'>Q{label_no}. {prompt if prompt else '（此題缺少中文題幹）'}</h2>", unsafe_allow_html=True)
+        st.markdown(f"<h2>Q{label_no}. {prompt if prompt else '（此題缺少中文題幹）'}</h2>", unsafe_allow_html=True)
     else:
-        st.markdown(f"<h2 class='neon-title'>Q{label_no}. {q['cloze_en']}</h2>", unsafe_allow_html=True)
+        st.markdown(f"<h2>Q{label_no}. {q['cloze_en']}</h2>", unsafe_allow_html=True)
         if mode == MODE_1 and q.get("sent_zh"):
             st.markdown(f"<div class='zh-blue'>📘 {q['sent_zh']}</div>", unsafe_allow_html=True)
 
-    browsing = st.session_state.browse_idx is not None
-    disabled = browsing
-
+    # 模式一：移除標籤文字
     if mode == MODE_1:
-        user_text = st.text_input("請輸入英文答案：",
-                                  key=f"ti_{global_idx}_{label_no}",
+        user_text = st.text_input("", key=f"ti_{global_idx}_{label_no}",
                                   value=st.session_state.text_input_cache,
-                                  disabled=disabled)
+                                  label_visibility="collapsed",
+                                  placeholder="")  # 可保留空白 placeholder
         return q, ("TEXT", user_text)
     else:
         payload = get_options_for_q(global_idx, mode)
         options_disp = payload["display"]
+        choice = st.radio("", options_disp if options_disp else [],
+                          key=f"mc_{global_idx}_{label_no}", label_visibility="collapsed") if options_disp else None
         if not options_disp:
             st.info("No options to select.")
-            choice = None
-        else:
-            choice = st.radio("", options_disp, key=f"mc_{global_idx}_{label_no}",
-                              label_visibility="collapsed", disabled=disabled)
         return q, ("MC", (choice, payload))
 
-def record_and_feedback(idx_label, q, chosen_label, is_correct):
+def explain_block(q, mode):
+    en = q["answer_en"].strip()
+    zh = (q.get("meaning_zh") or "").strip()
+    if mode == MODE_2:
+        text = f"**詳解**：{zh}（{en}）"
+    elif mode == MODE_3:
+        text = f"**詳解**：{en}（{zh}）"
+    else:  # 模式一
+        text = f"**詳解**：{en}（{zh}）"
+    st.markdown("<div class='explain'>" + text + "</div>", unsafe_allow_html=True)
+
+def record_for_summary(idx_label, q, chosen_label, is_correct, qidx_cache):
     st.session_state.records.append((
         idx_label,
         q["cloze_en"] if st.session_state.mode != MODE_3 else q.get("sent_zh", ""),
         chosen_label,
         q["answer_en"].strip(),
         is_correct,
-        st.session_state.mode
+        st.session_state.mode,
+        qidx_cache
     ))
-    if is_correct:
-        st.session_state.last_feedback = "<div class='feedback-small feedback-correct'>✅ 回答正確</div>"
-    else:
-        st.session_state.last_feedback = f"<div class='feedback-small feedback-wrong'>❌ Incorrect. 正確答案：{q['answer_en'].strip()}</div>"
 
-# ===================== 一般模式（前 10 題） =====================
+# ===================== 一般模式 =====================
 def normal_mode_page():
     cur_ptr = st.session_state.cur_ptr
-    browse_idx = st.session_state.browse_idx
-    show_idx = st.session_state.cur_round_qidx[browse_idx if browse_idx is not None else cur_ptr]
-    label_no = (browse_idx if browse_idx is not None else cur_ptr) + 1
+    show_qidx = st.session_state.cur_round_qidx[cur_ptr]
+    label_no = cur_ptr + 1
 
     render_top_card("第 1 回合", cur_ptr + 1, len(st.session_state.cur_round_qidx))
-    q, uinput = render_question_by_index(show_idx, label_no)
+    q, uinput = render_question_by_index(show_qidx, label_no, power=False)
 
-    if st.session_state.submitted and st.session_state.last_feedback and (browse_idx is None):
-        st.markdown(st.session_state.last_feedback, unsafe_allow_html=True)
+    # 主按鈕
+    action_label = "下一題" if st.session_state.submitted else "送出答案"
+    if st.button(action_label, key="action_btn_normal", use_container_width=True):
+        mode = st.session_state.mode
+        correct_en = q["answer_en"].strip()
+        correct_zh = (q.get("meaning_zh") or "").strip()
 
-    left, right = st.columns([1, 2])
-    with left:
-        if st.button("⬅️ 回上一題", use_container_width=True):
-            if cur_ptr > 0:
-                st.session_state.browse_idx = cur_ptr - 1
+        if not st.session_state.submitted:
+            # 判分 & 紀錄
+            if uinput[0] == "TEXT":
+                ans = (uinput[1] or "").strip()
+                is_correct = is_free_text_correct(ans, correct_en)
+                record_for_summary(label_no, q, ans, is_correct, show_qidx)
+            else:
+                chosen_disp, _ = uinput[1]
+                if chosen_disp is None:
+                    st.warning("請先選擇一個選項。"); st.stop()
+                is_correct = (_norm(chosen_disp) == _norm(correct_zh)) if mode == MODE_2 else (_norm(chosen_disp) == _norm(correct_en))
+                record_for_summary(label_no, q, chosen_disp, is_correct, show_qidx)
+            st.session_state.submitted = True
+            # 不 rerun：同頁面立即顯示詳解
+        else:
+            # 下一題
+            st.session_state.submitted = False
+            st.session_state.text_input_cache = ""
+            st.session_state.cur_ptr += 1
+            if st.session_state.cur_ptr >= len(st.session_state.cur_round_qidx):
+                st.session_state.round_active = False
+                st.session_state.summary_records = st.session_state.records[:]
             st.rerun()
 
-    with right:
-        action_label = "下一題" if st.session_state.submitted or (st.session_state.browse_idx is not None) else "送出答案"
-        if st.button(action_label, use_container_width=True, key="action_btn_normal"):
-            if st.session_state.browse_idx is not None:
-                st.session_state.browse_idx = None
-                st.rerun()
-
-            mode = st.session_state.mode
-            correct_en = q["answer_en"].strip()
-            correct_zh = (q.get("meaning_zh") or "").strip()
-
-            if not st.session_state.submitted:
-                if uinput[0] == "TEXT":
-                    ans = (uinput[1] or "").strip()
-                    is_correct = is_free_text_correct(ans, correct_en)
-                    record_and_feedback(label_no, q, ans, is_correct)
-                else:
-                    chosen_disp, payload = uinput[1]
-                    if chosen_disp is None:
-                        st.warning("請先選擇一個選項。"); st.stop()
-                    if mode == MODE_2:
-                        is_correct = (_norm(chosen_disp) == _norm(correct_zh))
-                        record_and_feedback(label_no, q, chosen_disp, is_correct)
-                    else:
-                        is_correct = (_norm(chosen_disp) == _norm(correct_en))
-                        record_and_feedback(label_no, q, chosen_disp, is_correct)
-
-                st.session_state.submitted = True
-                if st.session_state.records[-1][4]:
-                    st.session_state.used_answers.add(correct_en)
-                st.rerun()
-
-            else:
-                st.session_state.submitted = False
-                st.session_state.last_feedback = ""
-                st.session_state.text_input_cache = ""
-                st.session_state.cur_ptr += 1
-
-                if st.session_state.cur_ptr >= len(st.session_state.cur_round_qidx):
-                    st.session_state.round_active = False
-                    st.session_state.summary_records = st.session_state.records[:]
-                st.rerun()
-
-    if (st.session_state.browse_idx is None) and st.session_state.submitted and len(st.session_state.records) > 0:
-        en2zh = {it["answer_en"].strip(): (it.get("meaning_zh") or "").strip() for it in QUESTION_BANK}
-        correct_en = q["answer_en"].strip()
-        correct_zh = en2zh.get(correct_en, "")
+    # 顯示詳解
+    if st.session_state.submitted:
         st.markdown("---")
-        st.markdown(f"**正確答案：{correct_en}**　({correct_zh})")
+        explain_block(q, st.session_state.mode)
 
 # ===================== Summary（10 題後） =====================
 def summary_page():
@@ -412,7 +366,7 @@ def summary_page():
     if not wrongs:
         st.info("本回合無錯題！")
     else:
-        for idx_label, prompt, chosen, correct_en, _, _ in wrongs:
+        for idx_label, prompt, chosen, correct_en, _, _, _ in wrongs:
             en2zh = {it["answer_en"].strip(): (it.get("meaning_zh") or "").strip() for it in QUESTION_BANK}
             st.markdown(f"- **Q{idx_label}**：{prompt}")
             st.markdown(f"　你的答案：`{chosen}`")
@@ -434,25 +388,22 @@ def summary_page():
                 st.session_state.power_ptr = 0
                 st.session_state.power_failed = False
                 st.session_state.power_mode = True
-                st.session_state.browse_idx = None
                 st.session_state.submitted = False
-                st.session_state.last_feedback = ""
                 st.rerun()
 
-# ===================== 力量模式（暗黑霓虹，Q11~Q30，錯一次就終止） =====================
+# ===================== 力量模式（全黑霓虹 Q11~Q30 一錯即止） =====================
 def power_mode_page():
-    neon_css()
+    neon_black_css()
     total = len(st.session_state.power_qidx)
 
-    # 若已失敗或已完成
-    if st.session_state.power_failed or st.session_state.power_ptr >= total:
-        # GAME OVER 畫面或全通關
+    # 若結束（過關或失敗）
+    if st.session_state.power_ptr >= total or (st.session_state.power_failed and not st.session_state.submitted):
         if st.session_state.power_failed:
             st.markdown("<div class='gameover'>GAME OVER</div>", unsafe_allow_html=True)
             st.markdown("<div class='devil'>😈</div>", unsafe_allow_html=True)
             st.caption("力量模式：答錯即止。再接再厲！")
         else:
-            st.markdown("<h2 class='neon-title'>🎉 你征服了力量模式！</h2>", unsafe_allow_html=True)
+            st.markdown("<h2>🎉 你征服了力量模式！</h2>", unsafe_allow_html=True)
             st.write(f"你通過了 **{total} / {total}** 題。")
 
         c1, c2 = st.columns(2)
@@ -465,66 +416,45 @@ def power_mode_page():
         st.stop()
 
     cur = st.session_state.power_ptr
-    show_idx = st.session_state.power_qidx[st.session_state.browse_idx if st.session_state.browse_idx is not None else cur]
-    label_no = 11 + (st.session_state.browse_idx if st.session_state.browse_idx is not None else cur)
+    show_qidx = st.session_state.power_qidx[cur]
+    label_no = 11 + cur
 
     render_top_card("⚡ 力量模式", cur + 1, total)
-    q, uinput = render_question_by_index(show_idx, label_no)
+    q, uinput = render_question_by_index(show_qidx, label_no, power=True)
 
-    if st.session_state.submitted and st.session_state.last_feedback and (st.session_state.browse_idx is None):
-        st.markdown(st.session_state.last_feedback, unsafe_allow_html=True)
+    # 主按鈕
+    action_label = "下一題" if st.session_state.submitted else "送出答案"
+    if st.button(action_label, key="action_btn_power", use_container_width=True):
+        correct_en = q["answer_en"].strip()
+        correct_zh = (q.get("meaning_zh") or "").strip()
+        mode = st.session_state.mode
 
-    left, right = st.columns([1, 2])
-    with left:
-        if st.button("⬅️ 回上一題", use_container_width=True, key="power_back"):
-            if cur > 0:
-                st.session_state.browse_idx = cur - 1
+        if not st.session_state.submitted:
+            # 判分
+            if uinput[0] == "TEXT":
+                ans = (uinput[1] or "").strip()
+                is_correct = is_free_text_correct(ans, correct_en)
+            else:
+                chosen_disp, _ = uinput[1]
+                if chosen_disp is None:
+                    st.warning("請先選擇一個選項。"); st.stop()
+                is_correct = (_norm(chosen_disp) == _norm(correct_zh)) if mode == MODE_2 else (_norm(chosen_disp) == _norm(correct_en))
+            st.session_state.submitted = True
+            if not is_correct:
+                st.session_state.power_failed = True  # 先標記，顯示詳解後再進 Game Over
+            # 顯示詳解於本頁，不 rerun
+
+        else:
+            # 下一題（若上一題錯了，下一步就會到 Game Over 畫面）
+            st.session_state.submitted = False
+            if not st.session_state.power_failed:
+                st.session_state.power_ptr += 1
             st.rerun()
 
-    with right:
-        action_label = "下一題" if st.session_state.submitted or (st.session_state.browse_idx is not None) else "送出答案"
-        if st.button(action_label, use_container_width=True, key="action_btn_power"):
-            if st.session_state.browse_idx is not None:
-                st.session_state.browse_idx = None; st.rerun()
-
-            correct_en = q["answer_en"].strip()
-            correct_zh = (q.get("meaning_zh") or "").strip()
-            mode = st.session_state.mode
-
-            if not st.session_state.submitted:
-                if uinput[0] == "TEXT":
-                    ans = (uinput[1] or "").strip()
-                    is_correct = is_free_text_correct(ans, correct_en)
-                    record_and_feedback(label_no, q, ans, is_correct)
-                else:
-                    chosen_disp, payload = uinput[1]
-                    if chosen_disp is None:
-                        st.warning("請先選擇一個選項。"); st.stop()
-                    if mode == MODE_2:
-                        is_correct = (_norm(chosen_disp) == _norm(correct_zh))
-                        record_and_feedback(label_no, q, chosen_disp, is_correct)
-                    else:
-                        is_correct = (_norm(chosen_disp) == _norm(correct_en))
-                        record_and_feedback(label_no, q, chosen_disp, is_correct)
-
-                st.session_state.submitted = True
-                if not st.session_state.records[-1][4]:
-                    st.session_state.power_failed = True  # 錯一次就終止
-                st.rerun()
-            else:
-                st.session_state.submitted = False
-                st.session_state.last_feedback = ""
-                st.session_state.text_input_cache = ""
-                if not st.session_state.power_failed:
-                    st.session_state.power_ptr += 1
-                st.rerun()
-
-    if (st.session_state.browse_idx is None) and st.session_state.submitted:
-        en2zh = {it["answer_en"].strip(): (it.get("meaning_zh") or "").strip() for it in QUESTION_BANK}
-        correct_en = q["answer_en"].strip()
-        correct_zh = en2zh.get(correct_en, "")
+    # 顯示詳解
+    if st.session_state.submitted:
         st.markdown("---")
-        st.markdown(f"**正確答案：{correct_en}**　({correct_zh})")
+        explain_block(q, st.session_state.mode)
 
 # ===================== 路由 =====================
 if st.session_state.round_active:
