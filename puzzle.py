@@ -1,10 +1,10 @@
-# streamlit_app.py —— 3 modes + 修正判分 + 回上一頁 + Summary + 突擊模式(Q11~Q30)
+# streamlit_app.py —— 3 modes + 判分修正 + 回上一題 + Summary + 力量模式(暗黑霓虹, Q11~Q30)
 import streamlit as st
 import random
 
 st.set_page_config(page_title="Cloze Test Practice (3 modes, rounds)", page_icon="📝", layout="centered")
 
-# ===================== 內建題庫 =====================
+# ===================== 題庫 =====================
 QUESTION_BANK = [
     {'answer_en': 'adjust', 'cloze_en': 'He tried to a_____t his chair to be more comfortable.', 'sent_zh': '他試著調整椅子讓自己更舒服。', 'meaning_zh': '調整'},
     {'answer_en': 'adjustment', 'cloze_en': 'The teacher made an a_____t to the lesson plan.', 'sent_zh': '老師對課程計畫做了調整。', 'meaning_zh': '調整'},
@@ -78,7 +78,7 @@ QUESTION_BANK = [
     {'answer_en': 'warmth', 'cloze_en': 'Kind words create w_____h in people’s hearts.', 'sent_zh': '善意的話語帶來溫暖。', 'meaning_zh': '溫暖'},
 ]
 
-# ===================== 樣式 =====================
+# ===================== 樣式（基礎 / 霓虹） =====================
 def base_css():
     st.markdown("""
     <style>
@@ -96,28 +96,49 @@ def base_css():
     </style>
     """, unsafe_allow_html=True)
 
-def hard_css():
+def neon_css():
     st.markdown("""
     <style>
-    body { background:#0e0f13 !important; }
-    .block-container { color:#e7e9ee !important; }
-    h2 { color:#e7e9ee !important; }
-    .progress-card { background:#151824 !important; }
-    .feedback-correct { color:#7ae582 !important; }
-    .feedback-wrong { color:#ff6b6b !important; }
-    .zh-blue { color:#8ab4ff !important; }
+      :root {
+        --bg:#0b0e14; --panel:#121726; --neon:#00f7ff; --neon2:#ff3d81; --txt:#e7e9ee;
+      }
+      body { background:var(--bg) !important; }
+      .block-container { color:var(--txt) !important; }
+      h2, h3, h4, h5, h6 { color:var(--txt) !important; text-shadow:0 0 6px rgba(0,247,255,0.35); }
+      .progress-card { background:var(--panel) !important; box-shadow:0 0 12px rgba(0,247,255,0.12) inset; }
+      .stButton>button{ background:#0c1222; color:var(--txt); border:1px solid rgba(0,247,255,.35); border-radius:12px; }
+      .stButton>button:hover{ box-shadow:0 0 12px rgba(255,61,129,.45), inset 0 0 6px rgba(0,247,255,.35); }
+      .feedback-correct { color:#7ae582 !important; text-shadow:0 0 8px rgba(122,229,130,.5); }
+      .feedback-wrong { color:#ff6b6b !important; text-shadow:0 0 8px rgba(255,107,107,.55); }
+      .zh-blue { color:#8ab4ff !important; }
+      @keyframes neonPulse { 
+        0%{ text-shadow:0 0 8px var(--neon),0 0 16px var(--neon2); } 
+        50%{ text-shadow:0 0 2px var(--neon),0 0 6px var(--neon2); } 
+        100%{ text-shadow:0 0 8px var(--neon),0 0 16px var(--neon2); } 
+      }
+      .neon-title { color:#fff; letter-spacing:.08em; font-weight:900; animation:neonPulse 1.6s infinite; }
+      .gameover {
+        font-size: 48px; font-weight:900; letter-spacing:.12em; color:#ff3d81;
+        text-align:center; margin:18px 0 8px; 
+        text-shadow:0 0 10px rgba(255,61,129,.85), 0 0 22px rgba(0,247,255,.45);
+        animation: neonPulse 1.2s infinite;
+      }
+      .devil {
+        font-size: 64px; text-align:center; 
+        filter: drop-shadow(0 0 14px rgba(255,61,129,.75));
+      }
     </style>
     """, unsafe_allow_html=True)
 
 base_css()
 
-# ===================== 常數 =====================
+# ===================== 常數 & 模式 =====================
 QUESTIONS_PER_ROUND = 10
 MODE_1 = "模式一\n-   【手寫輸入】"
 MODE_2 = "模式二\n-   【中文選擇】"
 MODE_3 = "模式三\n-   【英文選擇】"
 
-# ===================== 判分工具：詞形彈性 =====================
+# ===================== 判分（詞形彈性） =====================
 def _norm(s: str) -> str:
     return (s or "").strip().lower()
 
@@ -126,11 +147,9 @@ def _variants(correct: str):
     vs = {c, c+"s", c+"es"}
     if c.endswith("y"):
         vs.add(c[:-1]+"ies")
-    # 過去式
     vs.add(c+"ed")
     if c.endswith("y"):
         vs.add(c[:-1]+"ied")
-    # 動名詞
     if c.endswith("e") and not c.endswith("ee"):
         vs.add(c[:-1]+"ing")
     else:
@@ -158,25 +177,25 @@ def is_free_text_correct(user_ans: str, correct_en: str) -> bool:
 def init_state():
     st.session_state.mode = MODE_1
     st.session_state.round_active = True
-    st.session_state.used_answers = set()         # 已答對後加入，避重
-    st.session_state.cur_round_qidx = []          # 本回合 10 題的索引
-    st.session_state.cur_ptr = 0                  # 目前題目的指標（0~9）
-    st.session_state.browse_idx = None            # 瀏覽上一題用（不影響 cur_ptr）
-    st.session_state.records = []                 # (idx_label, prompt, chosen, correct_en, is_correct, mode)
+    st.session_state.used_answers = set()
+    st.session_state.cur_round_qidx = []
+    st.session_state.cur_ptr = 0
+    st.session_state.browse_idx = None
+    st.session_state.records = []     # (idx_label, prompt, chosen, correct_en, is_correct, mode)
     st.session_state.submitted = False
     st.session_state.last_feedback = ""
     st.session_state.options_cache = {}
     st.session_state.text_input_cache = ""
-    # 總結 & 突擊模式
+    # Summary & 力量模式
     st.session_state.summary_records = None
-    st.session_state.hard_mode = False
-    st.session_state.hard_qidx = []
-    st.session_state.hard_ptr = 0
-    st.session_state.hard_failed = False
+    st.session_state.power_mode = False
+    st.session_state.power_qidx = []
+    st.session_state.power_ptr = 0
+    st.session_state.power_failed = False
 
 def start_round10():
-    # 從所有題中抽 10 題（避免重複答案）
     all_idx = list(range(len(QUESTION_BANK)))
+    # 先抽「題目索引」，之後用其 answer_en 做避重
     chosen = random.sample(all_idx, k=min(QUESTIONS_PER_ROUND, len(all_idx)))
     st.session_state.cur_round_qidx = chosen
     st.session_state.cur_ptr = 0
@@ -191,7 +210,7 @@ if "round_active" not in st.session_state:
     init_state()
     start_round10()
 
-# ===================== 側邊欄 =====================
+# ===================== 側欄 =====================
 with st.sidebar:
     st.markdown("### 設定")
     can_change_mode = (
@@ -199,7 +218,7 @@ with st.sidebar:
         not st.session_state.submitted and
         st.session_state.round_active and
         len(st.session_state.records) == 0 and
-        not st.session_state.hard_mode
+        not st.session_state.power_mode
     )
     st.session_state.mode = st.radio("選擇練習模式", [MODE_1, MODE_2, MODE_3], index=0, disabled=not can_change_mode)
     if st.button("🔄 重新開始"):
@@ -207,7 +226,7 @@ with st.sidebar:
         start_round10()
         st.rerun()
 
-# ===================== 選項生成 =====================
+# ===================== 選項 =====================
 def get_options_for_q(qidx, mode):
     key = (qidx, mode)
     if key in st.session_state.options_cache:
@@ -216,7 +235,7 @@ def get_options_for_q(qidx, mode):
     correct_en = item["answer_en"].strip()
     correct_zh = (item.get("meaning_zh") or "").strip()
 
-    if mode == MODE_2:  # 中文選項（直接用中文比對）
+    if mode == MODE_2:  # 中文選
         pool = list({(it.get("meaning_zh") or "").strip()
                      for it in QUESTION_BANK
                      if (it.get("meaning_zh") or "").strip() and (it.get("meaning_zh") or "").strip() != correct_zh})
@@ -225,7 +244,7 @@ def get_options_for_q(qidx, mode):
         random.shuffle(display)
         payload = {"display": display, "value": display[:]}
 
-    elif mode == MODE_3:  # 英文選項
+    elif mode == MODE_3:  # 英文選
         pool = list({it["answer_en"].strip()
                      for it in QUESTION_BANK
                      if it["answer_en"].strip() and it["answer_en"].strip() != correct_en})
@@ -257,19 +276,20 @@ def render_top_card(title_round, i, n):
     )
 
 def render_question_by_index(global_idx, label_no):
-    """根據 global_idx 渲染題目；label_no 用於顯示 Q 編號（例如 1~10 或 11~30）"""
     q = QUESTION_BANK[global_idx]
     mode = st.session_state.mode
 
+    if st.session_state.power_mode:
+        neon_css()
+
     if mode == MODE_3:
         prompt = q.get("sent_zh", "").strip()
-        st.markdown(f"<h2>Q{label_no}. {prompt if prompt else '（此題缺少中文題幹）'}</h2>", unsafe_allow_html=True)
+        st.markdown(f"<h2 class='neon-title'>Q{label_no}. {prompt if prompt else '（此題缺少中文題幹）'}</h2>", unsafe_allow_html=True)
     else:
-        st.markdown(f"<h2>Q{label_no}. {q['cloze_en']}</h2>", unsafe_allow_html=True)
+        st.markdown(f"<h2 class='neon-title'>Q{label_no}. {q['cloze_en']}</h2>", unsafe_allow_html=True)
         if mode == MODE_1 and q.get("sent_zh"):
             st.markdown(f"<div class='zh-blue'>📘 {q['sent_zh']}</div>", unsafe_allow_html=True)
 
-    # 瀏覽模式下禁用作答
     browsing = st.session_state.browse_idx is not None
     disabled = browsing
 
@@ -292,7 +312,7 @@ def render_question_by_index(global_idx, label_no):
 
 def record_and_feedback(idx_label, q, chosen_label, is_correct):
     st.session_state.records.append((
-        idx_label,                                 # 題次顯示（Q1/Q11）
+        idx_label,
         q["cloze_en"] if st.session_state.mode != MODE_3 else q.get("sent_zh", ""),
         chosen_label,
         q["answer_en"].strip(),
@@ -304,7 +324,7 @@ def record_and_feedback(idx_label, q, chosen_label, is_correct):
     else:
         st.session_state.last_feedback = f"<div class='feedback-small feedback-wrong'>❌ Incorrect. 正確答案：{q['answer_en'].strip()}</div>"
 
-# ===================== 主流程：一般 10 題 =====================
+# ===================== 一般模式（前 10 題） =====================
 def normal_mode_page():
     cur_ptr = st.session_state.cur_ptr
     browse_idx = st.session_state.browse_idx
@@ -314,15 +334,12 @@ def normal_mode_page():
     render_top_card("第 1 回合", cur_ptr + 1, len(st.session_state.cur_round_qidx))
     q, uinput = render_question_by_index(show_idx, label_no)
 
-    # 回饋
     if st.session_state.submitted and st.session_state.last_feedback and (browse_idx is None):
         st.markdown(st.session_state.last_feedback, unsafe_allow_html=True)
 
-    # 兩顆按鈕：回上一頁 / 送出or下一題
     left, right = st.columns([1, 2])
     with left:
         if st.button("⬅️ 回上一題", use_container_width=True):
-            # 僅切到瀏覽模式，不影響目前 pointer；若已在第一題則不動
             if cur_ptr > 0:
                 st.session_state.browse_idx = cur_ptr - 1
             st.rerun()
@@ -330,7 +347,6 @@ def normal_mode_page():
     with right:
         action_label = "下一題" if st.session_state.submitted or (st.session_state.browse_idx is not None) else "送出答案"
         if st.button(action_label, use_container_width=True, key="action_btn_normal"):
-            # 若在瀏覽狀態，回到目前題目即可
             if st.session_state.browse_idx is not None:
                 st.session_state.browse_idx = None
                 st.rerun()
@@ -340,7 +356,6 @@ def normal_mode_page():
             correct_zh = (q.get("meaning_zh") or "").strip()
 
             if not st.session_state.submitted:
-                # 第一次按 -> 判分
                 if uinput[0] == "TEXT":
                     ans = (uinput[1] or "").strip()
                     is_correct = is_free_text_correct(ans, correct_en)
@@ -348,34 +363,30 @@ def normal_mode_page():
                 else:
                     chosen_disp, payload = uinput[1]
                     if chosen_disp is None:
-                        st.warning("請先選擇一個選項。")
-                        st.stop()
+                        st.warning("請先選擇一個選項。"); st.stop()
                     if mode == MODE_2:
                         is_correct = (_norm(chosen_disp) == _norm(correct_zh))
                         record_and_feedback(label_no, q, chosen_disp, is_correct)
-                    else:  # MODE_3
+                    else:
                         is_correct = (_norm(chosen_disp) == _norm(correct_en))
                         record_and_feedback(label_no, q, chosen_disp, is_correct)
 
                 st.session_state.submitted = True
-                if st.session_state.records[-1][4]:  # 最新這題若正確
+                if st.session_state.records[-1][4]:
                     st.session_state.used_answers.add(correct_en)
                 st.rerun()
 
             else:
-                # 第二次按 -> 進入下一題/或結束
                 st.session_state.submitted = False
                 st.session_state.last_feedback = ""
                 st.session_state.text_input_cache = ""
                 st.session_state.cur_ptr += 1
 
                 if st.session_state.cur_ptr >= len(st.session_state.cur_round_qidx):
-                    # 回合結束，進 Summary
                     st.session_state.round_active = False
                     st.session_state.summary_records = st.session_state.records[:]
                 st.rerun()
 
-    # 題後對照（只在非瀏覽 & 已提交）
     if (st.session_state.browse_idx is None) and st.session_state.submitted and len(st.session_state.records) > 0:
         en2zh = {it["answer_en"].strip(): (it.get("meaning_zh") or "").strip() for it in QUESTION_BANK}
         correct_en = q["answer_en"].strip()
@@ -395,14 +406,13 @@ def summary_page():
     st.markdown(f"**Total Correct:** {correct}")
     st.markdown(f"**Accuracy:** {acc:.1f}%")
 
-    # 錯題總覽
     wrongs = [r for r in recs if not r[4]]
     st.markdown("---")
     st.markdown("### ❌ 錯題總覽")
     if not wrongs:
         st.info("本回合無錯題！")
     else:
-        for idx_label, prompt, chosen, correct_en, is_correct, _ in wrongs:
+        for idx_label, prompt, chosen, correct_en, _, _ in wrongs:
             en2zh = {it["answer_en"].strip(): (it.get("meaning_zh") or "").strip() for it in QUESTION_BANK}
             st.markdown(f"- **Q{idx_label}**：{prompt}")
             st.markdown(f"　你的答案：`{chosen}`")
@@ -412,72 +422,70 @@ def summary_page():
     c1, c2 = st.columns(2)
     with c1:
         if st.button("🔁 再玩一次", use_container_width=True):
-            init_state()
-            start_round10()
-            st.rerun()
+            init_state(); start_round10(); st.rerun()
     with c2:
-        # 全對才出現
         if correct == total and total == QUESTIONS_PER_ROUND:
             if st.button("⚡ 你渴望力量嗎", use_container_width=True):
-                # 進入突擊模式：抽 20 題，不含前 10 題的答案
-                used = set([QUESTION_BANK[i]["answer_en"] for i in st.session_state.cur_round_qidx])
-                remain = [i for i, it in enumerate(QUESTION_BANK) if it["answer_en"] not in used]
-                pick_n = min(20, len(remain))
-                st.session_state.hard_qidx = random.sample(remain, k=pick_n)
-                st.session_state.hard_ptr = 0
-                st.session_state.hard_failed = False
-                st.session_state.hard_mode = True
+                # 力量模式：抽 20 題，不含前10題的答案
+                used_answers = {QUESTION_BANK[i]["answer_en"] for i in st.session_state.cur_round_qidx}
+                remain_idx = [i for i, it in enumerate(QUESTION_BANK) if it["answer_en"] not in used_answers]
+                pick_n = min(20, len(remain_idx))
+                st.session_state.power_qidx = random.sample(remain_idx, k=pick_n)
+                st.session_state.power_ptr = 0
+                st.session_state.power_failed = False
+                st.session_state.power_mode = True
                 st.session_state.browse_idx = None
                 st.session_state.submitted = False
                 st.session_state.last_feedback = ""
-                hard_css()
                 st.rerun()
 
-# ===================== 突擊模式（Q11~Q30，答錯即結束） =====================
-def hard_mode_page():
-    hard_css()
-    total = len(st.session_state.hard_qidx)
-    # 若已失敗或已全部答完
-    if st.session_state.hard_failed or st.session_state.hard_ptr >= total:
-        st.subheader("⚡ 突擊模式結算")
-        got = st.session_state.hard_ptr if not st.session_state.hard_failed else st.session_state.hard_ptr
-        st.markdown(f"**你通過了：{got} / {total} 題**")
+# ===================== 力量模式（暗黑霓虹，Q11~Q30，錯一次就終止） =====================
+def power_mode_page():
+    neon_css()
+    total = len(st.session_state.power_qidx)
+
+    # 若已失敗或已完成
+    if st.session_state.power_failed or st.session_state.power_ptr >= total:
+        # GAME OVER 畫面或全通關
+        if st.session_state.power_failed:
+            st.markdown("<div class='gameover'>GAME OVER</div>", unsafe_allow_html=True)
+            st.markdown("<div class='devil'>😈</div>", unsafe_allow_html=True)
+            st.caption("力量模式：答錯即止。再接再厲！")
+        else:
+            st.markdown("<h2 class='neon-title'>🎉 你征服了力量模式！</h2>", unsafe_allow_html=True)
+            st.write(f"你通過了 **{total} / {total}** 題。")
+
         c1, c2 = st.columns(2)
         with c1:
             if st.button("🔁 回到一般模式再來", use_container_width=True):
-                init_state()
-                start_round10()
-                st.rerun()
+                init_state(); start_round10(); st.rerun()
         with c2:
             if st.button("🏁 結束", use_container_width=True):
                 st.stop()
         st.stop()
 
-    cur = st.session_state.hard_ptr
-    show_idx = st.session_state.hard_qidx[st.session_state.browse_idx if st.session_state.browse_idx is not None else cur]
-    # 顯示編號：Q11 起
+    cur = st.session_state.power_ptr
+    show_idx = st.session_state.power_qidx[st.session_state.browse_idx if st.session_state.browse_idx is not None else cur]
     label_no = 11 + (st.session_state.browse_idx if st.session_state.browse_idx is not None else cur)
 
-    render_top_card("⚡ 突擊模式", cur + 1, total)
+    render_top_card("⚡ 力量模式", cur + 1, total)
     q, uinput = render_question_by_index(show_idx, label_no)
 
-    # 回饋（只在非瀏覽 & 已提交）
     if st.session_state.submitted and st.session_state.last_feedback and (st.session_state.browse_idx is None):
         st.markdown(st.session_state.last_feedback, unsafe_allow_html=True)
 
     left, right = st.columns([1, 2])
     with left:
-        if st.button("⬅️ 回上一題", use_container_width=True, key="hard_back"):
+        if st.button("⬅️ 回上一題", use_container_width=True, key="power_back"):
             if cur > 0:
                 st.session_state.browse_idx = cur - 1
             st.rerun()
 
     with right:
         action_label = "下一題" if st.session_state.submitted or (st.session_state.browse_idx is not None) else "送出答案"
-        if st.button(action_label, use_container_width=True, key="action_btn_hard"):
+        if st.button(action_label, use_container_width=True, key="action_btn_power"):
             if st.session_state.browse_idx is not None:
-                st.session_state.browse_idx = None
-                st.rerun()
+                st.session_state.browse_idx = None; st.rerun()
 
             correct_en = q["answer_en"].strip()
             correct_zh = (q.get("meaning_zh") or "").strip()
@@ -491,8 +499,7 @@ def hard_mode_page():
                 else:
                     chosen_disp, payload = uinput[1]
                     if chosen_disp is None:
-                        st.warning("請先選擇一個選項。")
-                        st.stop()
+                        st.warning("請先選擇一個選項。"); st.stop()
                     if mode == MODE_2:
                         is_correct = (_norm(chosen_disp) == _norm(correct_zh))
                         record_and_feedback(label_no, q, chosen_disp, is_correct)
@@ -501,22 +508,17 @@ def hard_mode_page():
                         record_and_feedback(label_no, q, chosen_disp, is_correct)
 
                 st.session_state.submitted = True
-                if st.session_state.records[-1][4]:
-                    st.session_state.used_answers.add(correct_en)
-                else:
-                    # 突擊模式錯一次就結束
-                    st.session_state.hard_failed = True
+                if not st.session_state.records[-1][4]:
+                    st.session_state.power_failed = True  # 錯一次就終止
                 st.rerun()
             else:
-                # 下一題（僅在未失敗時）
                 st.session_state.submitted = False
                 st.session_state.last_feedback = ""
                 st.session_state.text_input_cache = ""
-                if not st.session_state.hard_failed:
-                    st.session_state.hard_ptr += 1
+                if not st.session_state.power_failed:
+                    st.session_state.power_ptr += 1
                 st.rerun()
 
-    # 題後對照（只在非瀏覽 & 已提交）
     if (st.session_state.browse_idx is None) and st.session_state.submitted:
         en2zh = {it["answer_en"].strip(): (it.get("meaning_zh") or "").strip() for it in QUESTION_BANK}
         correct_en = q["answer_en"].strip()
@@ -528,8 +530,7 @@ def hard_mode_page():
 if st.session_state.round_active:
     normal_mode_page()
 else:
-    # 顯示 Summary（含「你渴望力量嗎」）
-    if not st.session_state.hard_mode:
+    if not st.session_state.power_mode:
         summary_page()
     else:
-        hard_mode_page()
+        power_mode_page()
