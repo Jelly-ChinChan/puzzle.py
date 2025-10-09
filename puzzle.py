@@ -1,17 +1,18 @@
-# streamlit_app.py —— 3 modes + Summary + 力量模式(全黑霓虹, Q11~Q30, 一錯即止)
-# 更新：
-# 1) 力量模式整頁全黑（主區/側欄/頁首/容器）
-# 2) 送出後按鈕改字為「下一題」
-# 3) 模式二詳解：✅答對/❌答錯 徽章 + 中文(英文)
-# 4) 模式三詳解：每個選項 英文(中文)（含✅正確）
-# 5) 移除多餘空白（無分隔線、緊貼呈現）
+# streamlit_app.py — 3 modes + Summary + 力量模式(全黑, Q11~Q30, 一錯即止)
+# 新增/調整：
+# 1) 力量模式選項字白色 + 霓虹發光
+# 2) 進度條上方文案移除，只留進度條（紅色光暈）
+# 3) 「送出答案」→（顯示詳解 & 隱藏）→「下一題」替換，同位置出現
+# 4) 選項 hover/checked 霓虹光暈
+# 5) 最末「結束」→ 黑底結束頁（威脅(?)台詞）
+# 其餘沿用你前面版本（詳解/彩蛋等）
 
 import streamlit as st
 import random
 
 st.set_page_config(page_title="Cloze Test Practice (3 modes, rounds)", page_icon="📝", layout="centered")
 
-# ===================== 題庫 =====================
+# ===================== 題庫（略：與你現有相同） =====================
 QUESTION_BANK = [
     {'answer_en': 'adjust', 'cloze_en': 'He tried to a_____t his chair to be more comfortable.', 'sent_zh': '他試著調整椅子讓自己更舒服。', 'meaning_zh': '調整'},
     {'answer_en': 'adjustment', 'cloze_en': 'The teacher made an a_____t to the lesson plan.', 'sent_zh': '老師對課程計畫做了調整。', 'meaning_zh': '調整'},
@@ -79,93 +80,112 @@ QUESTION_BANK = [
     {'answer_en': 'stability', 'cloze_en': 'Many years of hot sun affected the s_____y of the house.', 'sent_zh': '多年炎熱與暴風雨影響了房子的穩定性。', 'meaning_zh': '穩定性'},
     {'answer_en': 'terminal', 'cloze_en': 'The patient has t_____l lung cancer.', 'sent_zh': '病人罹患末期肺癌。', 'meaning_zh': '末期的；終端的'},
     {'answer_en': 'torture', 'cloze_en': 'Some prisoners were t_____d to death.', 'sent_zh': '有些囚犯被折磨致死。', 'meaning_zh': '拷打；折磨'},
-    {'answer_en': 'tortured', 'cloze_en': 'Some of the prisoners were either beaten or t_____d to death.', 'sent_zh': '有些囚犯被毒打，或被折磨致死。', 'meaning_zh': '受折磨的'},
+    {'answer_en': 'tortured', 'cloze_en': 'Some of the prisoners were either beaten or t_____d to death.', 'sent_zh': '有些囚犯被毒打，或被折磨致死。', 'meaning_zh': '受損的/受折磨的'},
     {'answer_en': 'upright', 'cloze_en': 'Return your seats to the u_____t position.', 'sent_zh': '把座椅調回直立位置。', 'meaning_zh': '直立的'},
     {'answer_en': 'victim', 'cloze_en': 'The number of v_____s in plane crashes has increased.', 'sent_zh': '飛機失事的受害者人數增加。', 'meaning_zh': '受害者'},
     {'answer_en': 'warmth', 'cloze_en': 'Kind words create w_____h in people’s hearts.', 'sent_zh': '善意的話語帶來溫暖。', 'meaning_zh': '溫暖'},
 ]
 
-# ===================== 樣式（基礎 / 全黑霓虹） =====================
+# ===================== 樣式 =====================
 def base_css():
     st.markdown("""
     <style>
     html, body, [class*="css"]  { font-size: 22px !important; }
     h2 { font-size: 26px !important; margin-top: 0 !important; margin-bottom: .22em !important; }
     .block-container { padding-top: .4rem !important; padding-bottom: .6rem !important; max-width: 1000px; }
-    .progress-card { margin-bottom: 0 !important; }
-    .stRadio { margin-top: 0 !important; }
-    div[data-testid="stVerticalBlock"] > div:has(> div[data-testid="stRadio"]) { margin-top: 0 !important; }
-    .stButton>button{ height: 44px; padding: 0 18px; }
-    .explain { margin-top:.35rem; margin-bottom:.2rem; background:#f7f7f9; border-radius:12px; padding:10px 14px; border:1px solid #ececf1; }
+    .progress-card { margin-bottom: 0 !important; background:#fff; border-radius:14px; padding:6px 10px; }
+    /* 紅色光暈的 progress bar */
+    .progress-card progress { width:100%; height:14px; -webkit-appearance:none; appearance:none; }
+    .progress-card progress::-webkit-progress-bar { background:#f0f0f0; border-radius:10px; }
+    .progress-card progress::-webkit-progress-value {
+        background: linear-gradient(90deg, #ff3468, #ff7a90);
+        border-radius:10px; box-shadow:0 0 12px rgba(255,52,104,.7), 0 0 24px rgba(255,52,104,.35);
+    }
+    /* 解釋區與徽章 */
+    .explain { margin-top:.32rem; background:#f7f7f9; border-radius:12px; padding:10px 14px; border:1px solid #ececf1; }
     .badge { display:inline-block; padding:2px 10px; border-radius:999px; font-weight:700; font-size:16px; margin-right:6px; }
     .ok { background:#e9f7ef; color:#1a7f37; border:1px solid #a7dfb8; }
     .bad { background:#fdecea; color:#c62828; border:1px solid #f5b7ae; }
-    .opt-list { line-height:1.8; margin:.2rem 0 0 0; }
+    .opt-list { line-height:1.9; margin:.1rem 0 0 0; }
+    /* 普通模式的單選光暈（hover/checked） */
+    .stRadio [role="radiogroup"] > label:hover { filter: drop-shadow(0 0 6px rgba(255,52,104,.35)); }
+    .stRadio input[type="radio"]:checked { accent-color: #ff3d81; }
+    .stRadio [role="radiogroup"] > label:has(input[type="radio"]:checked){
+        filter: drop-shadow(0 0 6px rgba(255,61,129,.55));
+    }
+    /* 讓題目與進度條貼齊 */
+    .progress-topline { display:none; }  /* 我們不顯示任何上方文字 */
     </style>
     """, unsafe_allow_html=True)
 
 def neon_black_css():
     st.markdown("""
     <style>
-      :root { --bg:#000; --panel:#000; --txt:#e7e9ee; --neon:#00f7ff; --neon2:#ff3d81; }
+      :root { --bg:#000; --txt:#e7e9ee; --neon:#00f7ff; --pink:#ff3d81; }
       html, body, .stApp, [data-testid="stAppViewContainer"], [data-testid="stHeader"], [data-testid="stSidebar"] {
         background-color: #000 !important; color: var(--txt) !important;
       }
       section.main, .block-container { background:transparent !important; color:var(--txt) !important; }
-      .progress-card { background:var(--panel) !important; border-radius:16px; box-shadow:0 0 12px rgba(0,247,255,.12) inset; }
-      h2 { color:var(--txt) !important; margin-top:0 !important; text-shadow:0 0 6px rgba(0,247,255,.35); }
-      .stButton>button{ background:#060606; color:var(--txt); border:1px solid rgba(0,247,255,.35); border-radius:12px; }
+      /* 進度條容器與紅光暈 */
+      .progress-card { background:#000 !important; border-radius:16px; padding:6px 10px; box-shadow: none !important; }
+      .progress-card progress::-webkit-progress-bar { background:#0f0f0f; }
+      .progress-card progress::-webkit-progress-value {
+        background: linear-gradient(90deg, #ff3468, #ff7a90);
+        border-radius:10px; box-shadow:0 0 14px rgba(255,52,104,.85), 0 0 30px rgba(255,52,104,.45);
+      }
+      /* 題目字白 + 微光 */
+      h2 { color:#fff !important; text-shadow:0 0 6px rgba(0,247,255,.25); }
+      /* 按鈕 */
+      .stButton>button{ background:#060606; color:#fff; border:1px solid rgba(0,247,255,.35); border-radius:12px; }
       .stButton>button:hover{ box-shadow:0 0 12px rgba(255,61,129,.45), inset 0 0 6px rgba(0,247,255,.35); }
+      /* 力量模式選項：白字 + 發光（hover/checked） */
+      .stRadio label { color:#fff !important; }
+      .stRadio [role="radiogroup"] > label:hover { filter: drop-shadow(0 0 8px rgba(255,61,129,.5)); }
+      .stRadio [role="radiogroup"] > label:has(input[type="radio"]:checked){
+        filter: drop-shadow(0 0 10px rgba(0,247,255,.6));
+      }
       .explain { background:#0b0b0b; border:1px solid rgba(0,247,255,.2); }
       .badge.ok { background:#103a22; color:#7ae582; border-color:#255f3d; }
       .badge.bad { background:#2a0b0b; color:#ff6b6b; border-color:#7a2d2d; }
       .gameover { font-size: 48px; font-weight:900; letter-spacing:.12em; color:#ff3d81; text-align:center; margin:18px 0 8px;
                   text-shadow:0 0 10px rgba(255,61,129,.85), 0 0 22px rgba(0,247,255,.45); }
       .devil { font-size: 64px; text-align:center; filter: drop-shadow(0 0 14px rgba(255,61,129,.75)); }
+      .endpage { color:#fff; text-align:center; margin-top:2.2rem; }
+      .endpage h1 { font-size:42px; letter-spacing:.08em; color:#ff3d81; text-shadow:0 0 14px rgba(255,61,129,.7); }
+      .endpage p { font-size:22px; opacity:.92; }
     </style>
     """, unsafe_allow_html=True)
 
 base_css()
 
-# ===================== 常數 & 模式 =====================
+# ===================== 常數/模式 =====================
 QUESTIONS_PER_ROUND = 10
 MODE_1 = "模式一\n-   【手寫輸入】"
 MODE_2 = "模式二\n-   【中文選擇】"
 MODE_3 = "模式三\n-   【英文選擇】"
 
-# ===================== 判分（詞形彈性） =====================
+# ===================== 判分（彈性） =====================
 def _norm(s: str) -> str:
     return (s or "").strip().lower()
 
 def _variants(correct: str):
     c = _norm(correct)
     vs = {c, c+"s", c+"es"}
-    if c.endswith("y"):
-        vs.add(c[:-1]+"ies")
+    if c.endswith("y"): vs.add(c[:-1]+"ies")
     vs.add(c+"ed")
-    if c.endswith("y"):
-        vs.add(c[:-1]+"ied")
-    if c.endswith("e") and not c.endswith("ee"):
-        vs.add(c[:-1]+"ing")
-    else:
-        vs.add(c+"ing")
-    if c.endswith("y"):
-        vs.add(c[:-1]+"ying")
+    if c.endswith("y"): vs.add(c[:-1]+"ied")
+    if c.endswith("e") and not c.endswith("ee"): vs.add(c[:-1]+"ing")
+    else: vs.add(c+"ing")
+    if c.endswith("y"): vs.add(c[:-1]+"ying")
     return vs
 
 def is_free_text_correct(user_ans: str, correct_en: str) -> bool:
-    u = _norm(user_ans)
-    if not u:
-        return False
-    c = _norm(correct_en)
-    if u == c or u in _variants(c):
-        return True
-    if u.endswith("s") and u[:-1] == c:
-        return True
-    if u.endswith("es") and (u[:-2] == c or c+"e" == u[:-1]):
-        return True
-    if u.endswith("ies") and c.endswith("y") and u[:-3]+"y" == c:
-        return True
+    u = _norm(user_ans); c = _norm(correct_en)
+    if not u: return False
+    if u == c or u in _variants(c): return True
+    if u.endswith("s") and u[:-1] == c: return True
+    if u.endswith("es") and (u[:-2] == c or c+"e" == u[:-1]): return True
+    if u.endswith("ies") and c.endswith("y") and u[:-3]+"y" == c: return True
     return False
 
 # ===================== 狀態 =====================
@@ -178,12 +198,14 @@ def init_state():
     st.session_state.submitted = False
     st.session_state.options_cache = {}
     st.session_state.text_input_cache = ""
-    # Summary & 力量模式
+    # 彩蛋
     st.session_state.summary_records = None
     st.session_state.power_mode = False
     st.session_state.power_qidx = []
     st.session_state.power_ptr = 0
     st.session_state.power_failed = False
+    # 結束頁
+    st.session_state.ended = False
 
 def start_round10():
     all_idx = list(range(len(QUESTION_BANK)))
@@ -207,7 +229,8 @@ with st.sidebar:
         not st.session_state.submitted and
         st.session_state.round_active and
         len(st.session_state.records) == 0 and
-        not st.session_state.power_mode
+        not st.session_state.power_mode and
+        not st.session_state.ended
     )
     st.session_state.mode = st.radio("選擇練習模式", [MODE_1, MODE_2, MODE_3], index=0, disabled=not can_change_mode)
     if st.button("🔄 重新開始"):
@@ -221,74 +244,62 @@ def get_options_for_q(qidx, mode):
     item = QUESTION_BANK[qidx]
     correct_en = item["answer_en"].strip()
     correct_zh = (item.get("meaning_zh") or "").strip()
-
-    if mode == MODE_2:  # 中文選
+    if mode == MODE_2:
         pool = list({(it.get("meaning_zh") or "").strip()
                      for it in QUESTION_BANK
                      if (it.get("meaning_zh") or "").strip() and (it.get("meaning_zh") or "").strip() != correct_zh})
         distractors = random.sample(pool, k=min(3, len(pool)))
-        display = list(dict.fromkeys([correct_zh] + distractors))
-        random.shuffle(display)
-        payload = {"display": display, "value": display[:]}
-
-    elif mode == MODE_3:  # 英文選
+        display = list(dict.fromkeys([correct_zh] + distractors)); random.shuffle(display)
+        payload = {"display": display}
+    elif mode == MODE_3:
         pool = list({it["answer_en"].strip()
-                     for it in QUESTION_BANK
-                     if it["answer_en"].strip() and it["answer_en"].strip() != correct_en})
+                     for it in QUESTION_BANK if it["answer_en"].strip() and it["answer_en"].strip() != correct_en})
         distractors = random.sample(pool, k=min(3, len(pool)))
-        display = list(dict.fromkeys([correct_en] + distractors))
-        random.shuffle(display)
-        payload = {"display": display, "value": display[:]}
-
+        display = list(dict.fromkeys([correct_en] + distractors)); random.shuffle(display)
+        payload = {"display": display}
     else:
-        payload = {"display": [], "value": []}
-
+        payload = {"display": []}
     st.session_state.options_cache[key] = payload
     return payload
 
 # ===================== UI =====================
-def render_top_card(title_round, i, n):
+def render_progress(i, n, title=""):
     percent = int(i / n * 100) if n else 0
     st.markdown(
         f"""
-        <div class="progress-card" style='background-color:#f5f5f5; padding:9px 14px; border-radius:12px;'>
-            <div style='display:flex; align-items:center; justify-content:space-between; margin-bottom:4px;'>
-                <div style='font-size:18px;'>🎯 {title_round}｜進度：{i} / {n}</div>
-                <div style='font-size:16px; color:#555;'>{percent}%</div>
-            </div>
-            <progress value='{i}' max='{n if n else 1}' style='width:100%; height:14px;'></progress>
+        <div class="progress-card">
+            <progress value='{i}' max='{n if n else 1}'></progress>
         </div>
-        """,
-        unsafe_allow_html=True
+        """, unsafe_allow_html=True
     )
 
-def render_question_by_index(global_idx, label_no, power=False):
+def render_question(global_idx, label_no, power=False):
     if power: neon_black_css()
     q = QUESTION_BANK[global_idx]
     mode = st.session_state.mode
 
+    # 題目
     if mode == MODE_3:
         prompt = q.get("sent_zh", "").strip()
         st.markdown(f"<h2>Q{label_no}. {prompt if prompt else '（此題缺少中文題幹）'}</h2>", unsafe_allow_html=True)
     else:
         st.markdown(f"<h2>Q{label_no}. {q['cloze_en']}</h2>", unsafe_allow_html=True)
         if mode == MODE_1 and q.get("sent_zh"):
-            st.markdown(f"<div class='zh-blue' style='margin-top:.1rem;'>📘 {q['sent_zh']}</div>", unsafe_allow_html=True)
+            st.caption(q['sent_zh'])
 
-    # 模式一輸入框（無標籤）
+    # 輸入/選項
     if mode == MODE_1:
         user_text = st.text_input("", key=f"ti_{global_idx}_{label_no}",
                                   value=st.session_state.text_input_cache,
-                                  label_visibility="collapsed",
-                                  placeholder="")
+                                  label_visibility="collapsed")
         return q, ("TEXT", user_text)
     else:
         payload = get_options_for_q(global_idx, mode)
-        options_disp = payload["display"]
-        choice = st.radio("", options_disp if options_disp else [],
-                          key=f"mc_{global_idx}_{label_no}", label_visibility="collapsed") if options_disp else None
-        if not options_disp:
-            st.info("No options to select.")
+        options = payload["display"]
+        choice = st.radio("", options if options else [],
+                          key=f"mc_{global_idx}_{label_no}",
+                          label_visibility="collapsed") if options else None
+        if not options: st.info("No options to select.")
         return q, ("MC", (choice, payload))
 
 def record(idx_label, q, chosen_label, is_correct, qidx_cache):
@@ -303,18 +314,13 @@ def record(idx_label, q, chosen_label, is_correct, qidx_cache):
     ))
 
 def explain_block(q, mode, is_correct, payload=None):
-    """payload 僅模式三需要（顯示各選項 英文(中文)）"""
     en = q["answer_en"].strip()
     zh = (q.get("meaning_zh") or "").strip()
-
-    # 標題徽章（模式二要顏色狀態）
     if mode == MODE_2:
         badge = "<span class='badge ok'>✅ 答對</span>" if is_correct else "<span class='badge bad'>❌ 答錯</span>"
         body = f"{zh}（{en}）"
         st.markdown(f"<div class='explain'>{badge}{body}</div>", unsafe_allow_html=True)
-
     elif mode == MODE_3:
-        # 每個選項：英文(中文)，並標示正確
         en2zh = {it['answer_en'].strip(): (it.get('meaning_zh') or '').strip() for it in QUESTION_BANK}
         opts = (payload or {}).get("display", [])
         lines = []
@@ -323,28 +329,25 @@ def explain_block(q, mode, is_correct, payload=None):
             tag = " ✅" if _norm(e_s) == _norm(en) else ""
             lines.append(f"- {e_s}（{en2zh.get(e_s, '')}）{tag}")
         st.markdown(f"<div class='explain'><div class='opt-list'>{'<br/>'.join(lines)}</div></div>", unsafe_allow_html=True)
-
     else:
-        # 模式一：英文(中文)
         st.markdown(f"<div class='explain'><span class='badge {'ok' if is_correct else 'bad'}'>{'✅ 答對' if is_correct else '❌ 答錯'}</span>{en}（{zh}）</div>", unsafe_allow_html=True)
 
-# ===================== 一般模式 =====================
+# ===================== 一般模式頁 =====================
 def normal_mode_page():
     cur_ptr = st.session_state.cur_ptr
     show_qidx = st.session_state.cur_round_qidx[cur_ptr]
     label_no = cur_ptr + 1
 
-    render_top_card("第 1 回合", cur_ptr + 1, len(st.session_state.cur_round_qidx))
-    q, uinput = render_question_by_index(show_qidx, label_no, power=False)
+    render_progress(cur_ptr + 1, len(st.session_state.cur_round_qidx))
+    q, uinput = render_question(show_qidx, label_no, power=False)
 
-    # 單一主按鈕：送出 →（留在本頁顯示詳解 & 按鈕改文案）→ 下一題
-    action_label = "下一題" if st.session_state.submitted else "送出答案"
-    if st.button(action_label, key="action_btn_normal", use_container_width=True):
-        mode = st.session_state.mode
-        correct_en = q["answer_en"].strip()
-        correct_zh = (q.get("meaning_zh") or "").strip()
+    # 兩段式按鈕邏輯：送出 →（顯示詳解 & 替換）→ 下一題
+    if not st.session_state.submitted:
+        if st.button("送出答案", key="submit_normal", use_container_width=True):
+            correct_en = q["answer_en"].strip()
+            correct_zh = (q.get("meaning_zh") or "").strip()
+            mode = st.session_state.mode
 
-        if not st.session_state.submitted:
             if uinput[0] == "TEXT":
                 ans = (uinput[1] or "").strip()
                 is_correct = is_free_text_correct(ans, correct_en)
@@ -357,10 +360,19 @@ def normal_mode_page():
                 record(label_no, q, chosen_disp, is_correct, show_qidx)
 
             st.session_state.submitted = True
-            # 不 rerun：當頁顯示詳解、按鈕即時變成「下一題」
 
-        else:
-            # 下一題
+            # 顯示詳解
+            payload = uinput[1][1] if (uinput[0] == "MC") else None
+            explain_block(q, st.session_state.mode, st.session_state.records[-1][4], payload)
+
+            st.stop()  # 避免馬上渲染到下方
+    else:
+        # 已送出 → 顯示詳解 + 「下一題」按鈕（同位置）
+        payload = uinput[1][1] if (uinput[0] == "MC") else None
+        last_correct = st.session_state.records[-1][4]
+        explain_block(q, st.session_state.mode, last_correct, payload)
+
+        if st.button("下一題", key="next_normal", use_container_width=True):
             st.session_state.submitted = False
             st.session_state.text_input_cache = ""
             st.session_state.cur_ptr += 1
@@ -369,17 +381,10 @@ def normal_mode_page():
                 st.session_state.summary_records = st.session_state.records[:]
             st.rerun()
 
-    # 顯示詳解（緊貼，無分隔線）
-    if st.session_state.submitted:
-        last_is_correct = st.session_state.records[-1][4] if st.session_state.records else False
-        payload = uinput[1][1] if (uinput[0] == "MC") else None
-        explain_block(q, st.session_state.mode, last_is_correct, payload)
-
-# ===================== Summary（10 題後） =====================
+# ===================== Summary =====================
 def summary_page():
     recs = st.session_state.summary_records or []
-    total = len(recs)
-    correct = sum(1 for r in recs if r[4])
+    total = len(recs); correct = sum(1 for r in recs if r[4])
     acc = (correct / total * 100) if total else 0.0
 
     st.subheader("📊 總結")
@@ -415,45 +420,48 @@ def summary_page():
                 st.session_state.submitted = False
                 st.rerun()
 
-# ===================== 力量模式（全黑霓虹 Q11~Q30 一錯即止） =====================
+# ===================== 力量模式 =====================
 def power_mode_page():
     neon_black_css()
     total = len(st.session_state.power_qidx)
 
-    # 完結（過關或失敗）
+    # 結束/失敗
     if st.session_state.power_ptr >= total or (st.session_state.power_failed and not st.session_state.submitted):
         if st.session_state.power_failed:
             st.markdown("<div class='gameover'>GAME OVER</div>", unsafe_allow_html=True)
             st.markdown("<div class='devil'>😈</div>", unsafe_allow_html=True)
             st.caption("力量模式：答錯即止。再接再厲！")
         else:
-            st.markdown("<h2>🎉 你征服了力量模式！</h2>", unsafe_allow_html=True)
+            st.markdown("<h2 style='color:#fff;'>🎉 你征服了力量模式！</h2>", unsafe_allow_html=True)
             st.write(f"你通過了 **{total} / {total}** 題。")
 
-        c1, c2 = st.columns(2)
+        c1, c2, c3 = st.columns(3)
         with c1:
             if st.button("🔁 回到一般模式再來", use_container_width=True):
                 init_state(); start_round10(); st.rerun()
         with c2:
             if st.button("🏁 結束", use_container_width=True):
-                st.stop()
+                st.session_state.ended = True
+                st.session_state.power_mode = False
+                st.rerun()
+        with c3:
+            pass
         st.stop()
 
     cur = st.session_state.power_ptr
     show_qidx = st.session_state.power_qidx[cur]
     label_no = 11 + cur
 
-    render_top_card("⚡ 力量模式", cur + 1, total)
-    q, uinput = render_question_by_index(show_qidx, label_no, power=True)
+    render_progress(cur + 1, total)
+    q, uinput = render_question(show_qidx, label_no, power=True)
 
-    # 單一按鈕（送出→顯示詳解→下一題）
-    action_label = "下一題" if st.session_state.submitted else "送出答案"
-    if st.button(action_label, key="action_btn_power", use_container_width=True):
-        correct_en = q["answer_en"].strip()
-        correct_zh = (q.get("meaning_zh") or "").strip()
-        mode = st.session_state.mode
+    # 兩段式按鈕邏輯（與一般模式一致）
+    if not st.session_state.submitted:
+        if st.button("送出答案", key="submit_power", use_container_width=True):
+            correct_en = q["answer_en"].strip()
+            correct_zh = (q.get("meaning_zh") or "").strip()
+            mode = st.session_state.mode
 
-        if not st.session_state.submitted:
             if uinput[0] == "TEXT":
                 ans = (uinput[1] or "").strip()
                 is_correct = is_free_text_correct(ans, correct_en)
@@ -465,22 +473,16 @@ def power_mode_page():
 
             st.session_state.submitted = True
             if not is_correct:
-                st.session_state.power_failed = True  # 顯示詳解後下一步結束
+                st.session_state.power_failed = True
 
-        else:
-            st.session_state.submitted = False
-            if not st.session_state.power_failed:
-                st.session_state.power_ptr += 1
-            st.rerun()
-
-    # 詳解（無分隔線、緊貼）
-    if st.session_state.submitted:
-        # 建 payload 給模式三使用（顯示每個選項）
+            payload = uinput[1][1] if (uinput[0] == "MC") else None
+            explain_block(q, mode, is_correct, payload)
+            st.stop()
+    else:
         payload = uinput[1][1] if (uinput[0] == "MC") else None
-        # 判定對錯（從 UI 值重新取）
+        # 重新判定（顯示詳解）
         mode = st.session_state.mode
-        en = q["answer_en"].strip()
-        zh = (q.get("meaning_zh") or "").strip()
+        en = q["answer_en"].strip(); zh = (q.get("meaning_zh") or "").strip()
         if uinput[0] == "TEXT":
             was_correct = is_free_text_correct(uinput[1] or "", en)
         else:
@@ -488,11 +490,33 @@ def power_mode_page():
             was_correct = (_norm(chosen_disp) == _norm(zh)) if mode == MODE_2 else (_norm(chosen_disp) == _norm(en))
         explain_block(q, mode, was_correct, payload)
 
+        if st.button("下一題", key="next_power", use_container_width=True):
+            st.session_state.submitted = False
+            if not st.session_state.power_failed:
+                st.session_state.power_ptr += 1
+            st.rerun()
+
+# ===================== 結束頁 =====================
+def end_page():
+    neon_black_css()
+    st.markdown("""
+    <div class='endpage'>
+      <h1>SEE YOU AGAIN</h1>
+      <p>期待你再來挑戰，否則你將永遠被困在題庫之中，哇哈哈哈哈 👹</p>
+    </div>
+    """, unsafe_allow_html=True)
+    st.markdown("<br/>", unsafe_allow_html=True)
+    if st.button("🔁 回到首頁", use_container_width=True):
+        init_state(); start_round10(); st.rerun()
+
 # ===================== 路由 =====================
-if st.session_state.round_active:
-    normal_mode_page()
+if st.session_state.ended:
+    end_page()
 else:
-    if not st.session_state.power_mode:
-        summary_page()
+    if st.session_state.round_active:
+        normal_mode_page()
     else:
-        power_mode_page()
+        if not st.session_state.power_mode:
+            summary_page()
+        else:
+            power_mode_page()
