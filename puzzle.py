@@ -1,14 +1,8 @@
-# streamlit_app.py — 3 modes + Summary + 力量模式(全黑, Q11~Q30, 一錯即止)
-# 變更重點：
-# - 力量模式整頁黑底、選項/文字白色，選項與進度條皆有霓虹光暈
-# - 進度條僅保留條本身（紅色光暈）
-# - 模式一移除「請輸入英文答案」字樣
-# - 送出答案 → 立即 rerun，畫面只剩「詳解 + 下一題」
-# - 模式二詳解：✅/❌徽章 + 中文(英文)
-# - 模式三詳解：每個選項「英文(中文)」，正確選項加 ✅
-# - Summary 不會出現「送出答案」按鈕（強制 submitted=False）
-# - 彩蛋：10題全對 → 力量模式（Q11~Q30，與前10題不重複；錯一次就結束，有 GAME OVER 頁）
-# - 結束頁：黑底威脅(?)台詞
+# streamlit_app.py — 3 modes + Summary + 力量模式 + 終極力量回合
+# 本版更新：
+# - 力量模式進度條上緣再往下推（避免被切到）
+# - 一般模式進度條恢復「原本細條、素色、無光暈」樣式與間距
+# - 其餘功能同上一版（彩蛋、力量模式、終極力量回合等）
 
 import streamlit as st
 import random
@@ -93,72 +87,95 @@ QUESTION_BANK = [
 def base_css():
     st.markdown("""
     <style>
-    html, body, [class*="css"]  { font-size: 22px !important; }
-    h2 { font-size: 26px !important; margin-top: 0 !important; margin-bottom: .22em !important; }
-    .block-container { padding-top: .4rem !important; padding-bottom: .6rem !important; max-width: 1000px; }
-    /* 進度條僅顯示條，且紅色光暈 */
-    .progress-card { margin-bottom: 0 !important; background:#fff; border-radius:14px; padding:6px 10px; }
-    .progress-card progress { width:100%; height:14px; -webkit-appearance:none; appearance:none; }
-    .progress-card progress::-webkit-progress-bar { background:#f0f0f0; border-radius:10px; }
-    .progress-card progress::-webkit-progress-value {
-        background: linear-gradient(90deg, #ff3468, #ff7a90);
-        border-radius:10px; box-shadow:0 0 12px rgba(255,52,104,.7), 0 0 24px rgba(255,52,104,.35);
-    }
-    .explain { margin-top:.32rem; background:#f7f7f9; border-radius:12px; padding:10px 14px; border:1px solid #ececf1; }
-    .badge { display:inline-block; padding:2px 10px; border-radius:999px; font-weight:700; font-size:16px; margin-right:6px; }
-    .ok { background:#e9f7ef; color:#1a7f37; border:1px solid #a7dfb8; }
-    .bad { background:#fdecea; color:#c62828; border:1px solid #f5b7ae; }
-    .opt-list { line-height:1.9; margin:.1rem 0 0 0; }
-    /* 普通模式：選項光暈 */
-    .stRadio [role="radiogroup"] > label:hover { filter: drop-shadow(0 0 6px rgba(255,52,104,.35)); }
-    .stRadio input[type="radio"]:checked { accent-color: #ff3d81; }
-    .stRadio [role="radiogroup"] > label:has(input[type="radio"]:checked){
-        filter: drop-shadow(0 0 6px rgba(255,61,129,.55));
-    }
+      html, body, [class*="css"]  { font-size: 22px !important; }
+      .block-container { padding-top: .28rem !important; padding-bottom: .6rem !important; max-width: 1000px; }
+      h2 { font-size: 26px !important; margin-top: .10rem !important; margin-bottom: .40rem !important; }
+
+      /* ---- 一般模式進度條（恢復原本：細、素色、無光暈） ---- */
+      .progress-card-normal { margin: 0 0 .30rem 0 !important; }
+      .progress-card-normal progress {
+        width:100%; height:8px; -webkit-appearance:none; appearance:none;
+      }
+      .progress-card-normal progress::-webkit-progress-bar {
+        background:#e9e9ee; border-radius:6px;
+      }
+      .progress-card-normal progress::-webkit-progress-value {
+        background:#5a67d8; border-radius:6px; box-shadow:none;
+      }
+
+      /* 模式選項 hover 一點點柔光即可（一般模式） */
+      .stRadio [role="radiogroup"] > label:hover { filter: drop-shadow(0 0 4px rgba(90,103,216,.25)); }
+      .stRadio input[type="radio"]:checked { accent-color: #5a67d8; }
+
+      /* 手機上保持穩定間距 */
+      @media (max-width: 480px){
+        .block-container { padding-top: .26rem !important; }
+        h2 { margin-top: .06rem !important; margin-bottom: .34rem !important; }
+      }
     </style>
     """, unsafe_allow_html=True)
 
 def neon_black_css():
     st.markdown("""
     <style>
-      :root { --bg:#000; --txt:#ffffff; --neon:#00f7ff; --pink:#ff3d81; }
+      :root { --bg:#000; --txt:#ffffff; --pink:#ff3d81; }
+
       html, body, .stApp, [data-testid="stAppViewContainer"], [data-testid="stHeader"], [data-testid="stSidebar"] {
         background-color: #000 !important; color: var(--txt) !important;
       }
-      section.main, .block-container { background:transparent !important; color:var(--txt) !important; }
-      /* 進度條：紅色光暈 */
-      .progress-card { background:#000 !important; border-radius:16px; padding:6px 10px; box-shadow:none !important; }
-      .progress-card progress::-webkit-progress-bar { background:#0f0f0f; }
-      .progress-card progress::-webkit-progress-value {
+      section.main, .block-container {
+        background:transparent !important; color:var(--txt) !important;
+        padding-top: 1.45rem !important;   /* 再往下推，絕不切字 */
+      }
+
+      /* ---- 力量模式進度條（紅暈） ---- */
+      .progress-card-power { margin: .10rem 0 .10rem 0 !important; }
+      .progress-card-power progress {
+        width:100%; height:14px; -webkit-appearance:none; appearance:none;
+      }
+      .progress-card-power progress::-webkit-progress-bar { background:#0f0f0f; border-radius:10px; }
+      .progress-card-power progress::-webkit-progress-value {
         background: linear-gradient(90deg, #ff3468, #ff7a90);
         border-radius:10px; box-shadow:0 0 14px rgba(255,52,104,.85), 0 0 30px rgba(255,52,104,.45);
       }
-      /* 題目字白 + 微光 */
-      h2 { color:#fff !important; text-shadow:0 0 6px rgba(0,247,255,.25); }
-      /* 按鈕 */
-      .stButton>button{ background:#060606; color:#fff; border:1px solid rgba(0,247,255,.35); border-radius:12px; }
-      .stButton>button:hover{ box-shadow:0 0 12px rgba(255,61,129,.45), inset 0 0 6px rgba(0,247,255,.35); }
-      /* 力量模式選項：白字 + 霓虹（把 label 可能的文字容器全覆蓋） */
-      .stRadio [role="radiogroup"] label,
-      .stRadio [role="radiogroup"] label * ,
-      .stRadio [role="radiogroup"] label div,
-      .stRadio [role="radiogroup"] label p,
-      .stRadio [role="radiogroup"] label span {
-        color:#fff !important; opacity:1 !important;
+
+      /* 題目 */
+      h2 { color:#fff !important; margin-top:.06rem !important; margin-bottom:.28rem !important; }
+
+      /* 按鈕（黑底白字） */
+      .stButton>button{ background:#060606; color:#fff; border:1px solid rgba(255,255,255,.15); border-radius:12px; }
+      .stButton>button:hover{ box-shadow:0 0 12px rgba(255,61,129,.45), inset 0 0 6px rgba(255,255,255,.15); }
+
+      /* 選項白字 + 粉紅光暈（hover 與 checked 更強） */
+      .stRadio [role="radiogroup"] > label{
+        color:#fff !important; border-radius:12px; padding:6px 8px;
+        transition: filter .12s ease, box-shadow .12s ease;
       }
-      .stRadio [role="radiogroup"] > label:hover { filter: drop-shadow(0 0 8px rgba(255,61,129,.5)); }
+      .stRadio [role="radiogroup"] label, .stRadio [role="radiogroup"] label * { color:#fff !important; opacity:1 !important; }
+      .stRadio [role="radiogroup"] > label:hover {
+        filter: drop-shadow(0 0 10px rgba(255,61,129,.6));
+        box-shadow: 0 0 8px rgba(255,61,129,.35) inset, 0 0 8px rgba(255,61,129,.35);
+      }
       .stRadio [role="radiogroup"] > label:has(input[type="radio"]:checked){
-        filter: drop-shadow(0 0 10px rgba(0,247,255,.6));
+        filter: drop-shadow(0 0 12px rgba(255,61,129,.85));
+        box-shadow: 0 0 10px rgba(255,61,129,.45) inset, 0 0 10px rgba(255,61,129,.45);
       }
-      .explain { background:#0b0b0b; border:1px solid rgba(0,247,255,.2); }
-      .badge.ok { background:#103a22; color:#7ae582; border-color:#255f3d; }
-      .badge.bad { background:#2a0b0b; color:#ff6b6b; border-color:#7a2d2d; }
+      .stRadio input[type="radio"]:checked { accent-color: #ff3d81; }
+
+      .explain { background:#0b0b0b; border:1px solid rgba(255,255,255,.12); border-radius:12px; padding:10px 14px; }
+      .badge { display:inline-block; padding:2px 10px; border-radius:999px; font-weight:700; font-size:16px; margin-right:6px; }
+      .ok  { background:#103a22; color:#7ae582; border:1px solid #255f3d; }
+      .bad { background:#2a0b0b; color:#ff6b6b; border:1px solid #7a2d2d; }
+
       .gameover { font-size: 48px; font-weight:900; letter-spacing:.12em; color:#ff3d81; text-align:center; margin:18px 0 8px;
-                  text-shadow:0 0 10px rgba(255,61,129,.85), 0 0 22px rgba(0,247,255,.45); }
+                  text-shadow:0 0 10px rgba(255,61,129,.85), 0 0 22px rgba(255,255,255,.25); }
       .devil { font-size: 64px; text-align:center; filter: drop-shadow(0 0 14px rgba(255,61,129,.75)); }
-      .endpage { color:#fff; text-align:center; margin-top:2.2rem; }
-      .endpage h1 { font-size:42px; letter-spacing:.08em; color:#ff3d81; text-shadow:0 0 14px rgba(255,61,129,.7); }
-      .endpage p { font-size:22px; opacity:.92; }
+
+      @media (max-width: 480px){
+        .block-container { padding-top: 1.42rem !important; }
+        .progress-card-power { margin: .10rem 0 .10rem 0 !important; }
+        h2 { margin-top:.04rem !important; margin-bottom:.26rem !important; }
+      }
     </style>
     """, unsafe_allow_html=True)
 
@@ -200,16 +217,21 @@ def init_state():
     st.session_state.round_active = True
     st.session_state.cur_round_qidx = []
     st.session_state.cur_ptr = 0
-    st.session_state.records = []     # (idx_label, prompt, chosen, correct_en, is_correct, mode, qidx_cache)
+    st.session_state.records = []
     st.session_state.submitted = False
     st.session_state.options_cache = {}
     st.session_state.text_input_cache = ""
-    # 彩蛋
+    # 力量模式
     st.session_state.summary_records = None
     st.session_state.power_mode = False
     st.session_state.power_qidx = []
     st.session_state.power_ptr = 0
     st.session_state.power_failed = False
+    # 終極力量回合
+    st.session_state.ultimate_mode = False
+    st.session_state.ultimate_qidx = []
+    st.session_state.ultimate_ptr = 0
+    st.session_state.ultimate_failed = False
     # 結束頁
     st.session_state.ended = False
 
@@ -236,6 +258,7 @@ with st.sidebar:
         st.session_state.round_active and
         len(st.session_state.records) == 0 and
         not st.session_state.power_mode and
+        not st.session_state.ultimate_mode and
         not st.session_state.ended
     )
     st.session_state.mode = st.radio("選擇練習模式", [MODE_1, MODE_2, MODE_3], index=0, disabled=not can_change_mode)
@@ -268,11 +291,12 @@ def get_options_for_q(qidx, mode):
     st.session_state.options_cache[key] = payload
     return payload
 
-# ===================== UI =====================
-def render_progress(i, n):
+# ===================== UI 共用 =====================
+def render_progress(i, n, power=False):
+    klass = "progress-card-power" if power else "progress-card-normal"
     st.markdown(f"""
-        <div class="progress-card">
-            <progress value='{i}' max='{n if n else 1}'></progress>
+        <div class="{klass}">
+          <progress value='{i}' max='{n if n else 1}'></progress>
         </div>
         """, unsafe_allow_html=True)
 
@@ -341,7 +365,7 @@ def normal_mode_page():
     show_qidx = st.session_state.cur_round_qidx[cur_ptr]
     label_no = cur_ptr + 1
 
-    render_progress(cur_ptr + 1, len(st.session_state.cur_round_qidx))
+    render_progress(cur_ptr + 1, len(st.session_state.cur_round_qidx), power=False)
     q, uinput = render_question(show_qidx, label_no, power=False)
 
     if not st.session_state.submitted:
@@ -362,7 +386,7 @@ def normal_mode_page():
                 record(label_no, q, chosen_disp, is_correct, show_qidx)
 
             st.session_state.submitted = True
-            st.rerun()  # 直接切到詳解 + 下一題
+            st.rerun()
     else:
         payload = uinput[1][1] if (uinput[0] == "MC") else None
         last_correct = st.session_state.records[-1][4]
@@ -379,7 +403,6 @@ def normal_mode_page():
 
 # ===================== Summary =====================
 def summary_page():
-    # 保險：避免任何頁面殘留的 submitted 狀態導致出現送出按鈕
     st.session_state.submitted = False
 
     recs = st.session_state.summary_records or []
@@ -411,7 +434,7 @@ def summary_page():
             if st.button("⚡ 你渴望力量嗎", use_container_width=True):
                 used_answers = {QUESTION_BANK[i]["answer_en"] for i in st.session_state.cur_round_qidx}
                 remain_idx = [i for i, it in enumerate(QUESTION_BANK) if it["answer_en"] not in used_answers]
-                pick_n = min(20, len(remain_idx))   # Q11~Q30 共 20 題
+                pick_n = min(20, len(remain_idx))   # Q11~Q30 20題
                 st.session_state.power_qidx = random.sample(remain_idx, k=pick_n)
                 st.session_state.power_ptr = 0
                 st.session_state.power_failed = False
@@ -439,9 +462,21 @@ def power_mode_page():
             if st.button("🔁 回到一般模式再來", use_container_width=True):
                 init_state(); start_round10(); st.rerun()
         with c2:
-            if st.button("🏁 結束", use_container_width=True):
-                st.session_state.ended = True
+            if st.button("💥 終極力量回合", use_container_width=True):
+                used = {QUESTION_BANK[i]["answer_en"] for i in st.session_state.cur_round_qidx} \
+                       | {QUESTION_BANK[i]["answer_en"] for i in st.session_state.power_qidx}
+                remain_idx = [i for i, it in enumerate(QUESTION_BANK) if it["answer_en"] not in used]
+                max_n = min(30, len(remain_idx))
+                if max_n == 0:
+                    st.session_state.ended = True
+                    st.session_state.power_mode = False
+                    st.rerun()
+                st.session_state.ultimate_qidx = random.sample(remain_idx, k=max_n)
+                st.session_state.ultimate_ptr = 0
+                st.session_state.ultimate_failed = False
+                st.session_state.ultimate_mode = True
                 st.session_state.power_mode = False
+                st.session_state.submitted = False
                 st.rerun()
         st.stop()
 
@@ -449,10 +484,9 @@ def power_mode_page():
     show_qidx = st.session_state.power_qidx[cur]
     label_no = 11 + cur
 
-    render_progress(cur + 1, total)
+    render_progress(cur + 1, total, power=True)
     q, uinput = render_question(show_qidx, label_no, power=True)
 
-    # 送出 → 立即 rerun
     if not st.session_state.submitted:
         if st.button("送出答案", key="submit_power", use_container_width=True):
             correct_en = q["answer_en"].strip()
@@ -471,10 +505,8 @@ def power_mode_page():
             st.session_state.submitted = True
             if not is_correct:
                 st.session_state.power_failed = True
-
             st.rerun()
     else:
-        # 顯示詳解 + 下一題
         payload = uinput[1][1] if (uinput[0] == "MC") else None
         mode = st.session_state.mode
         en = q["answer_en"].strip(); zh = (q.get("meaning_zh") or "").strip()
@@ -491,16 +523,83 @@ def power_mode_page():
                 st.session_state.power_ptr += 1
             st.rerun()
 
+# ===================== 終極力量回合 =====================
+def ultimate_mode_page():
+    neon_black_css()
+    total = len(st.session_state.ultimate_qidx)
+
+    if st.session_state.ultimate_ptr >= total or (st.session_state.ultimate_failed and not st.session_state.submitted):
+        if st.session_state.ultimate_failed:
+            st.markdown("<div class='gameover'>GAME OVER</div>", unsafe_allow_html=True)
+            st.markdown("<div class='devil'>😈</div>", unsafe_allow_html=True)
+            st.caption("終極力量回合：答錯即止。")
+        else:
+            st.markdown("<h2 style='color:#fff;'>🏆 你征服了終極力量回合！</h2>", unsafe_allow_html=True)
+            st.write(f"你通過了 **{total} / {total}** 題。")
+
+        c1, c2 = st.columns(2)
+        with c1:
+            if st.button("🔁 回到一般模式再來", use_container_width=True):
+                init_state(); start_round10(); st.rerun()
+        with c2:
+            if st.button("🏁 結束", use_container_width=True):
+                st.session_state.ended = True
+                st.session_state.ultimate_mode = False
+                st.rerun()
+        st.stop()
+
+    cur = st.session_state.ultimate_ptr
+    show_qidx = st.session_state.ultimate_qidx[cur]
+    label_no = 31 + cur  # Q31 起
+
+    render_progress(cur + 1, total, power=True)
+    q, uinput = render_question(show_qidx, label_no, power=True)
+
+    if not st.session_state.submitted:
+        if st.button("送出答案", key="submit_ultimate", use_container_width=True):
+            correct_en = q["answer_en"].strip()
+            correct_zh = (q.get("meaning_zh") or "").strip()
+            mode = st.session_state.mode
+
+            if uinput[0] == "TEXT":
+                ans = (uinput[1] or "").strip()
+                is_correct = is_free_text_correct(ans, correct_en)
+            else:
+                chosen_disp, _ = uinput[1]
+                if chosen_disp is None:
+                    st.warning("請先選擇一個選項。"); st.stop()
+                is_correct = (_norm(chosen_disp) == _norm(correct_zh)) if mode == MODE_2 else (_norm(chosen_disp) == _norm(correct_en))
+
+            st.session_state.submitted = True
+            if not is_correct:
+                st.session_state.ultimate_failed = True
+            st.rerun()
+    else:
+        payload = uinput[1][1] if (uinput[0] == "MC") else None
+        mode = st.session_state.mode
+        en = q["answer_en"].strip(); zh = (q.get("meaning_zh") or "").strip()
+        if uinput[0] == "TEXT":
+            was_correct = is_free_text_correct(uinput[1] or "", en)
+        else:
+            chosen_disp, _ = uinput[1]
+            was_correct = (_norm(chosen_disp) == _norm(zh)) if mode == MODE_2 else (_norm(chosen_disp) == _norm(en))
+        explain_block(q, mode, was_correct, payload)
+
+        if st.button("下一題", key="next_ultimate", use_container_width=True):
+            st.session_state.submitted = False
+            if not st.session_state.ultimate_failed:
+                st.session_state.ultimate_ptr += 1
+            st.rerun()
+
 # ===================== 結束頁 =====================
 def end_page():
     neon_black_css()
     st.markdown("""
-    <div class='endpage'>
-      <h1>SEE YOU AGAIN</h1>
-      <p>期待你再來挑戰，否則你將永遠被困在題庫之中，哇哈哈哈哈 👹</p>
+    <div style="text-align:center; margin-top:2.2rem; color:#fff;">
+      <h1 style="color:#ff3d81; text-shadow:0 0 14px rgba(255,61,129,.7);">SEE YOU AGAIN</h1>
+      <p style="font-size:22px; opacity:.92;">期待你再來挑戰，否則你將永遠被困在題庫之中，哇哈哈哈哈 👹</p>
     </div>
     """, unsafe_allow_html=True)
-    st.markdown("<br/>", unsafe_allow_html=True)
     if st.button("🔁 回到首頁", use_container_width=True):
         init_state(); start_round10(); st.rerun()
 
@@ -510,8 +609,9 @@ if st.session_state.ended:
 else:
     if st.session_state.round_active:
         normal_mode_page()
+    elif st.session_state.power_mode:
+        power_mode_page()
+    elif st.session_state.ultimate_mode:
+        ultimate_mode_page()
     else:
-        if not st.session_state.power_mode:
-            summary_page()
-        else:
-            power_mode_page()
+        summary_page()
